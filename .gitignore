@@ -35,3 +35,4 @@ vignettes/*.pdf
 # Data files that may have sensitive information
 *.txt
 *.csv
+*.xlsx
