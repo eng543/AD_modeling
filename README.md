@@ -1,4 +1,4 @@
-# AD_modeling
+# A machine learning algorithm for identifying atopic dermatitis in adults from electronic health records
 The current work aims to identify patients for inclusion in genome-wide association studies (GWAS). The scripts in this repository implement a machine learning-based phenotype algorithm for identifying patients with atopic dermatitis (AD). The main algorithms of interest that are currently under development can be found in models.R. This script includes the infrastructure for experimenting with lasso logistic regression, adaptive lasso logistic regression, random forest, and support vector machines.
 
 The features used as input to the algorithm were derived from the electronic health record (EHR) stored in the Northwestern Medicine Enterprise Data Warehouse. We include information codified in the EHR, such as diagnosis codes, prescribed medications, laboratory results, and demographics. Codified information is easily extracted from the EHR and requires little pre-processing to be included as a feature in machine learning algorithms.
