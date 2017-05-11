@@ -1,6 +1,6 @@
 library(dplyr)
 
-setwd("~/AD_lasso")
+setwd("~/AD_modeling")
 options(digits=11)
 
 

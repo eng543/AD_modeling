@@ -1,4 +1,4 @@
-setwd("~/AD_lasso")
+setwd("~/AD_modeling")
 
 group_codes <- function(dat, criteria, group_meds_labs) {
 	#dat <- read.csv("data_sources/AD_data_patientAggregated_withLabels.csv", as.is = T)
