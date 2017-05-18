@@ -7,28 +7,26 @@ options(digits=11)
 
 ### aggregate at patient level
 
-# get patient id separate from note id
-#notes$patient_id <- strsplit(notes$note_id, "_")[[1]][1]
-# faster way if don't actually need to use unique_patients for anything anymore
-# doesn't work, just does first patient
 
 preprocess <- function(source_file, criteria, count_type) {
+  #dat <- read.csv("data_sources/output_042617_defaultTerm.csv", as.is = T)
 	dat <- read.csv(source_file, as.is = T)
 
 	patients = c()
-	dat$patient_id <- dat$note_id
-	for(i in 1:nrow(dat)) {
-	  #split note_id on underscore to get patient_id [1] and note_id [2]
-	  split = strsplit(dat[i, 1], "_")
-	  # take patient part of split
-	  patient = split[[1]][1]
-	  # add new patient id to data frame
-	  dat[i, "patient_id"] <- patient
-	  # add patient id to list of patients
-	  patients <- c(patients, patient)
-	}
-	# get set of unique patients
-	unique_patients <- unique(patients)
+	#dat$patient_id <- dat$note_id
+	
+	# for(i in 1:nrow(dat)) {
+	#   #split note_id on underscore to get patient_id [1] and note_id [2]
+	#   split = strsplit(dat[i, 1], "_")
+	#   # take patient part of split
+	#   patient = split[[1]][1]
+	#   # add new patient id to data frame
+	#   dat[i, "patient_id"] <- patient
+	#   # add patient id to list of patients
+	#   patients <- c(patients, patient)
+	# }
+	
+	dat$patient_id <- sapply(strsplit(dat$note_id, "_"), "[[", 1)
 
 	# remove note id column so can use summarize
 	dat <- dat[,-1]
