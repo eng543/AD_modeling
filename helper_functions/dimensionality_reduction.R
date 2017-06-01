@@ -1,6 +1,6 @@
 setwd("~/AD_modeling")
 
-group_codes <- function(dat, criteria, group_meds_labs) {
+group_codes <- function(dat, criteria, group_meds_labs, relations) {
 	#dat <- read.csv("data_sources/AD_data_patientAggregated_withLabels.csv", as.is = T)
 	
 	label_text <- paste(toupper(criteria), "Label", sep = "")
@@ -149,6 +149,115 @@ group_codes <- function(dat, criteria, group_meds_labs) {
 	  dat_grouped[,eval(i)] <- cols
 	  # move on to next group
 	}
+	
+	# get rid of discard column
+	discard_cols <- grep("discard", names(dat_grouped))
+	dat_grouped <- dat_grouped[,-discard_cols]
+	
+	remove(groups)
+	remove(dat_groups)
+	remove(group)
+	remove(group_index)
+	remove(discard_cols)
+	
+	# group relations
+	if (relations) {
+		rel <- read.csv("data_sources/AD_relationData_patientAggregated_withLabels.csv", as.is = T)
+		
+		# read in concept groups
+		rel_groups <- read.table("data_sources/Location_Concepts_byCui.txt", sep = "\t", header = FALSE, as.is = TRUE)
+		
+		colcount = 0
+		# loops through the concepts (columns)
+		for (i in names(rel)) {
+		  colcount = colcount + 1
+		  
+		  if (i != "patient_id_fix" & i != label_text & i != "label") {
+			# splits into cui, family, history (on _)
+			split <- strsplit(i, "_")
+			cui_phen <- split[[1]][1]
+			cui_loc <- split[[1]][2]
+			family <- split[[1]][3]
+			history <- split[[1]][4]
+			negation <- split[[1]][5]
+			
+			if (negation == "0") {
+			  negation <- "positive"
+			} else {
+			  negation <- "negative"
+			}
+
+			# lookup concept grouping
+			group_index <- grep(cui_loc, rel_groups$V2)
+
+			
+			if ((length(group_index) > 0) & family != "other" & family != "family" & history == "false") {
+			  new_col_name <- NA
+			  group <- rel_groups$V1[group_index]
+			  
+			  if (negation == "positive") {
+					new_col_name <- paste(group, "patient", negation, colcount, sep = "~")
+					
+					
+				  } else if (family == "patient" & negation == "negative") {
+					new_col_name <- paste(group, "patient", negation, colcount, sep = "~")
+				  
+				  } else {
+				#print(paste("problem:", cui))
+			  new_col_name <- paste("discard", "discard", "discard", colcount, sep = "~")
+				}
+			  
+			  } else {
+			  #print(paste(i, "not in group"))
+				  new_col_name <- paste("discard", "discard", "discard", colcount, sep = "~")
+			
+			}
+			
+			# set new column name
+			colnames(rel)[colcount] <- new_col_name
+		  }
+		}
+
+		# combine columns (add counts) with the same group name
+		rel_grouped <- data.frame("patient_id" = rel$patient_id, "label" = rel$label)
+
+		unique_groups <- c()
+		for (i in names(rel)) {
+		  if (i != "patient_id_fix" & i != label_text & i != "label") {
+			col_long <- strsplit(i, "~")
+			col <- paste(col_long[[1]][1], col_long[[1]][2], col_long[[1]][3], sep = "~")
+			unique_groups <- c(unique_groups, col)
+		  }
+		}
+
+		unique_groups <- unique(unique_groups)
+
+		# loop through the unique set of groups
+		for (i in unique_groups) {
+		  # create list for concepts that belong to group
+		  cols = c()
+		  # loop through concepts assigned group~agent~negation~column #
+		  for (j in names(rel)) {
+			# if concept is in current group
+			split <- strsplit(j, "~") # split to get rid of the tailing column #
+		  if (paste(split[[1]][1], split[[1]][2], split[[1]][3], sep = "~") == i) {
+			  # add column to list, add values
+			  if (length(cols) == 0) {
+				cols <- c(rel[,eval(j)])
+			  } else {
+				cols <- cols + c(rel[,eval(j)])
+			  }
+			}
+		  }
+		  # create new column with group counts aggregated across individual concepts
+		  rel_grouped[,eval(i)] <- cols
+		  # move on to next group
+		}
+
+		 # get rid of discard column
+		discard_cols <- grep("discard", names(rel_grouped))
+		rel_grouped <- rel_grouped[,-discard_cols]
+	}
 
 	# change medication groups and lab values to binary variables
 	# log transform those that aren't binary
@@ -238,6 +347,26 @@ group_codes <- function(dat, criteria, group_meds_labs) {
   	                                          0)
   	
   	# log transform everything else
+  	# if relations, combine those first
+  	if (relations) {
+  		rel_groups <- grep("handfoot_dermatitis|flexural_dermatitis", names(no_meds_labs))
+  		rel_cols <- no_meds_labs[, rel_groups]
+  		no_meds_labs <- no_meds_labs[, -rel_groups]
+  		rel_cols <- rel_cols[, order(names(rel_cols))]
+  		
+  		for (i in names(rel_grouped)) {
+  			if (i %in% names(rel_cols) & i != "patient_id" & i != "label") {
+  				col <- grep(i, names(rel_cols))
+  				rel_cols[, col] <- rel_cols[, col] + rel_grouped[, i]
+  			} else if (!(i %in% names(rel_cols)) & i != "patient_id" & i != "label") {
+  			  #print(i)
+  				rel_cols[, i] <- rel_grouped[, i]
+  			}
+  		}
+  		
+  		no_meds_labs <- cbind(no_meds_labs, rel_cols)
+  	}
+	
   	no_meds_labs_log <- log(no_meds_labs[,-c(1,2)] + 1)
   	no_meds_labs_log <- cbind(no_meds_labs[,c(1,2)], no_meds_labs_log)
   	
@@ -299,10 +428,30 @@ group_codes <- function(dat, criteria, group_meds_labs) {
 	                                           1,
 	                                           0)
 	  
+	  # if relations, combine those
+	  if (relations) {
+	    rel_groups <- grep("handfoot_dermatitis|flexural_dermatitis", names(no_labs))
+	    rel_cols <- no_labs[, rel_groups]
+	    no_labs <- no_labs[, -rel_groups]
+	    rel_cols <- rel_cols[, order(names(rel_cols))]
+	    
+	    for (i in names(rel_grouped)) {
+	      if (i %in% names(rel_cols) & i != "patient_id" & i != "label") {
+	        col <- grep(i, names(rel_cols))
+	        rel_cols[, col] <- rel_cols[, col] + rel_grouped[, i]
+	      } else if (!(i %in% names(rel_cols)) & i != "patient_id" & i != "label") {
+	        #print(i)
+	        rel_cols[, i] <- rel_grouped[, i]
+	      }
+	    }
+	    
+	    no_labs <- cbind(no_labs, rel_cols)
+	  }
+	  
 	  # re-combine
 	  dat_grouped <- cbind(no_labs, labs_summary)
 	  
-	  #new lab cols
+	  # new lab cols
 	  new_lab_cols <- grep("labs_positive|labs_negated", names(dat_grouped))
 	  new_med_cols <- grep("topical_steroid|topical_calcineurin_inhibitors|emollients|antihistimines|oral_steroids|
 					 phototheraphy|other|oral_antibiotics|oral_tacrolimus|alternative_medicine", names(dat_grouped))
@@ -319,27 +468,13 @@ group_codes <- function(dat, criteria, group_meds_labs) {
 	    } else {
 	      if (i != 1 & i != 2 & !(i %in% new_lab_cols)) {
 	        #print(names(dat_grouped[i]))
-	        
 	        # log transform everything else
-	        #dat_grouped[, i] <- log(dat_grouped[, i] + 1)
+	        dat_grouped[, i] <- log(dat_grouped[, i] + 1)
 	      }
 	    }
 	  }
 	}
 
-	# get rid of discard column
-	discard_cols <- grep("discard", names(dat_grouped))
-	dat_grouped <- dat_grouped[,-discard_cols]
-
-	# just in case there are cocnepts that do not belong to a group, make sure they're still included
-	# don't think this applies anymore after another round of dictionary building
-	#for (j in names(dat_groups)) {
-	#  if (!(strsplit(j, "~")[[1]][1] %in% unique(groups$V1)) & j != "patient_id" & j != "label" & j != "classification" & j != "patient_id_fix") {
-	#    dat_grouped[, eval(j)] <- dat_groups[, eval(j)]
-	#  }
-	#}
-
-	remove(dat_groups)
 	remove(dat)
 	write.csv(dat_grouped, "AD_data_patientAggregated_withLabels_grouped.csv", row.names = F)
 	
