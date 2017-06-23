@@ -2,8 +2,9 @@ library(glmnet)
 library(dplyr)
 library(ROCR)
 library(caret)
+library(pmml)
 
-setwd("~/AD_lasso")
+setwd("~/AD_modeling")
 options(digits=11)
 set.seed(999)
 
@@ -22,9 +23,10 @@ description <- "structured variables only|Dx codes all normalized and log transf
 #description <- "NLP only|concepts grouped|note counts|meds labs grouped"
 # NLP
 nlp_only <- F
-criteria <- "UKWP" # HR or UKWP
+criteria <- "HR" # HR or UKWP
 count_type <- "add" # add or note
 group_meds <- T
+relations <- F
 
 # coded
 code_only <- F
@@ -37,7 +39,7 @@ if (!code_only & !nlp_only) {
   dat_agg <- preprocess("data_sources/output_042617_defaultTerm.csv", criteria, count_type)
   
   # group_codes(aggregated_data, criteria, group_meds_labs)
-  dat_grouped <- group_codes(dat_agg, criteria, group_meds)
+  dat_grouped <- group_codes(dat_agg, criteria, group_meds, relations)
   
   remove(dat_agg)
   
@@ -132,6 +134,12 @@ foldid <- folds$fold
 model <- cv.glmnet(train_matrix, train_label, alpha=1, family="binomial", foldid=foldid)
 #plot(model)
 best_lambda <- model$lambda.min
+# save model
+pmodel <- pmml(model)
+savePMML(pmodel, "content.pmml", version=4.2)
+#saveXML(pmodel, "content.xml")
+
+#test <- fileToXMLNode("content.xml")
 
 train_predict <- predict(model, train_matrix, s = best_lambda, type = "class")
 valid_predict <- predict(model, valid_matrix, s = best_lambda, type = "class")

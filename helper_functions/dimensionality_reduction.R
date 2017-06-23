@@ -2,27 +2,12 @@ setwd("~/AD_modeling")
 
 group_codes <- function(dat, criteria, group_meds_labs, relations) {
 	#dat <- read.csv("data_sources/AD_data_patientAggregated_withLabels.csv", as.is = T)
-	
+	# dat <- dat_agg
+  
 	label_text <- paste(toupper(criteria), "Label", sep = "")
 	
 	# figure out what family hx/patient hx variables we need to deal with
 	hist <- read.delim("data_sources/history_concepts.txt", sep = "\t", header = F)
-
-	#for (i in names(dat)) {
-	#  if (i != "label" & i != "UKWPLabel" & i != "patient_id") {
-	#    split <- strsplit(i, "_")
-	#    cui <- split[[1]][1]
-	#    patient <- split[[1]][2]
-	#    history <- split[[1]][3]
-	#    negation <- split[[1]][4]
-	#    if (patient == "family") {
-	#      famhx <- paste("family:", cui)
-	#      print(famhx)
-	#    } else if (patient == "patient" & history == "true") {
-	#      perhx <- paste("personal hx:", cui)
-	#    }
-	#  }
-	#}
 
 	# read in concept groups
 	groups <- read.table("data_sources/Dictionary_Concepts_byCui.txt", sep = "\t", header = FALSE, as.is = TRUE)
@@ -74,27 +59,27 @@ group_codes <- function(dat, criteria, group_meds_labs, relations) {
   		    }
   		  }
   		  
-  		  else if (group == "famhx_atopy") {
-  		    new_col_name <- paste("atopy~familyhx", negation, colcount, sep = "~")
-  		  }
-  		  
-  		  else if (group == "famhx_eczema") {
-  		    new_col_name <- paste("eczema~familyhx", negation, colcount, sep = "~")
-  		  }
-		  
 		  # group positive patient (non-history) concepts
 		   #else if (family == "patient" & history == "false" & negation == "positive") {
   		  ##### remove history qualifier to get these concepts represented
 		     else if (family == "patient" & negation == "positive") {
 			# creates new column name for concept: group~column#
-			  new_col_name <- paste(group, "patient", negation, colcount, sep = "~")
-			
+		       if (group == "atopy~familyhx" | group == "atopy~patienthx" | group == "eczema~familyhx" | group == "eczema~patienthx") {
+		         new_col_name <- paste(group, negation, colcount, sep = "~")
+		       } else {
+		         new_col_name <- paste(group, "patient", negation, colcount, sep = "~")
+		       }
+
 			# group negative patient (non-history) concepts
 		  #} else if (family == "patient" & history == "false" & negation == "negative") {
 			  ##### remove history qualifer to get these concepts represented
 		   } else if (family == "patient" & negation == "negative") {
-			  new_col_name <- paste(group, "patient", negation, colcount, sep = "~")
-			
+		     if (group == "atopy~familyhx" | group == "atopy~patienthx" | group == "eczema~familyhx" | group == "eczema~patienthx") {
+		       new_col_name <- paste(group, negation, colcount, sep = "~")
+		     } else {
+		       new_col_name <- paste(group, "patient", negation, colcount, sep = "~")
+		     }
+		     
 		  } else {
 			#print(paste("problem:", cui))
 			# throw out concepts family concepts not in approved famhx list
@@ -309,7 +294,7 @@ group_codes <- function(dat, criteria, group_meds_labs, relations) {
           }
         }
         
-        else if (grepl("negated", names(meds_labs[i]))) {
+        else if (grepl("negative", names(meds_labs[i]))) {
           if (i %in% med_cols_sub) {
             #print(paste("negative med: ", names(meds_labs[i])))
             
@@ -378,53 +363,86 @@ group_codes <- function(dat, criteria, group_meds_labs, relations) {
 	  no_labs <- dat_grouped[, -lab_cols]
 	  
 	  # new columns for groups
-
-	  labs$labs_positive <- 0
-	  labs$labs_negated <- 0
+    #labs$labs_positive <- 0
+	  #labs$labs_negated <- 0
+	  
+	  # vectors to create new columns for groups
+	  labs_positive <- c()
+	  labs_negative <- c()
+	  
+	  # patient IDs
+	  pats <- no_labs$patient_id
+	  
+	  labs_t <- as.data.frame(t(labs))
 	  
 	  # new indices in subset
-	  lab_cols_sub <- grep("skinreactivity|ige", names(labs))
+	  #lab_cols_sub <- grep("skinreactivity|ige", names(labs))
 	  
-	  # create groups, aggregate counts
-	  # to do: implement with dplyr?
-	  for (i in 1:ncol(labs)) {
-	    if (names(labs[i]) != "meds_positive" & names(labs[i]) != "meds_negated" & names(labs[i]) != "labs_positive" & names(labs[i]) != "labs_negated") {
-	      #print(names(labs[i]))
-	      
-	      if (grepl("positive", names(labs[i]))) {
-	        if (i %in% lab_cols_sub) {
-	          #print(paste("positive lab: ", names(labs[i])))
-	          
-	          labs$labs_positive <- labs[, i] + labs$labs_positive
-	        }
-	        
-	        else {
-	          print("problem!")
-	        }
-	      }
-	      
-	      else if (grepl("negated", names(labs[i]))) {
-	        if (i %in% lab_cols_sub) {
-	          #print(paste("negative labs: ", names(labs[i])))
-	          
-	          labs$labs_negated <- labs[, i] + labs$labs_negated
-	        }
-	        
-	        else {
-	          print("problem!")
-	        }
-	      }
+	  # positive vs. negative
+	  labs_neg <- grep("negative", rownames(labs_t))
+	  
+	  # label labs
+	  labs_t$category <- NA
+	  
+	  for (i in 1:nrow(labs_t)) {
+	    if (i %in% labs_neg) {
+	      labs_t$category[i] <- "labs_negative"
+	    } else {
+	      labs_t$category[i] <- "labs_positive"
 	    }
 	  }
 	  
+	  labs_sum <- labs_t %>% 
+	    group_by(category) %>%
+	    summarise_each(funs(sum))
+	  
+	  labs_summary <- as.data.frame(t(labs_sum))
+	  names(labs_summary) <- as.character(unlist(labs_summary[1,]))
+	  labs_summary <- labs_summary[-1,]
+	  
+	  # create groups, aggregate counts
+	  # to do: implement with dplyr?
+	  # for (i in 1:ncol(labs)) {
+	  #   if (names(labs[i]) != "meds_positive" & names(labs[i]) != "meds_negated" & names(labs[i]) != "labs_positive" & names(labs[i]) != "labs_negated") {
+	  #     #print(names(labs[i]))
+	  #     
+	  #     if (grepl("positive", names(labs[i]))) {
+	  #       if (i %in% lab_cols_sub) {
+	  #         #print(paste("positive lab: ", names(labs[i])))
+	  #         
+	  #         labs$labs_positive <- labs[, i] + labs$labs_positive
+	  #       }
+	  #       
+	  #       else {
+	  #         print("problem!")
+	  #       }
+	  #     }
+	  #     
+	  #     else if (grepl("negative", names(labs[i]))) {
+	  #       if (i %in% lab_cols_sub) {
+	  #         #print(paste("negative labs: ", names(labs[i])))
+	  #         
+	  #         labs$labs_negated <- labs[, i] + labs$labs_negated
+	  #       }
+	  #       
+	  #       else {
+	  #         print("problem!")
+	  #       }
+	  #     }
+	  #   }
+	  # }
+	  
 	  # just take the groups
-	  labs_summary <- labs[,c(5,6)]
+	  #labs_summary <- labs[,c(5,6)]
+	  
+	  # add patient names back in
+	  #labs_summary$patient_id <- pats
 	  
 	  # make groups binary
-	  labs_summary$labs_positive <- ifelse(labs_summary$labs_positive > 0,
+	  labs_summary$labs_positive <- ifelse(as.numeric(as.character(labs_summary$labs_positive)) > 0,
 	                                            1,
 	                                            0)
-	  labs_summary$labs_negated <- ifelse(labs_summary$labs_negated > 0,
+	  labs_summary$labs_negative <- ifelse(as.numeric(as.character(labs_summary$labs_negative)) > 0,
 	                                           1,
 	                                           0)
 	  
@@ -452,7 +470,7 @@ group_codes <- function(dat, criteria, group_meds_labs, relations) {
 	  dat_grouped <- cbind(no_labs, labs_summary)
 	  
 	  # new lab cols
-	  new_lab_cols <- grep("labs_positive|labs_negated", names(dat_grouped))
+	  new_lab_cols <- grep("labs_positive|labs_negative", names(dat_grouped))
 	  new_med_cols <- grep("topical_steroid|topical_calcineurin_inhibitors|emollients|antihistimines|oral_steroids|
 					 phototheraphy|other|oral_antibiotics|oral_tacrolimus|alternative_medicine", names(dat_grouped))
 	  

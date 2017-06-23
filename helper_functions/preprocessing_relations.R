@@ -131,7 +131,7 @@ preprocess_relations <- function(source_file, criteria, count_type) {
 
 	remove(dat_agg_backup)
 	remove(cat)
-	return(dat_agg)
+	#return(dat_agg)
 
 }
 

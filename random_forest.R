@@ -3,45 +3,47 @@ library(dplyr)
 library(ROCR)
 library(caret)
 
-setwd("~/AD_lasso")
+setwd("~/AD_modeling")
 options(digits=11)
 set.seed(999)
 
 # load helper functions
 source("helper_functions/preprocessing.R")
-#source("helper_functions/dimensionality_reduction_noLogTransform.R")
+source("helper_functions/preprocessing_relations.R")
 source("helper_functions/dimensionality_reduction.R")
 source("helper_functions/demographics.R")
-#source("helper_functions/diagnosis_codes_noLogTransform.R")
 source("helper_functions/diagnosis_codes_expanded.R")
 source("helper_functions/meds_labs.R")
 source("helper_functions/read_subsets.R")
 source("helper_functions/performance_measures.R")
 
 # change description/settings of current experiment
-description <- "concepts grouped|add up counts|phenOnly Dx codes normalized and all log transformed"
+description <- "replication|concepts grouped|add up counts|all Dx codes normalized and all log transformed|relations"
 
 # NLP
 nlp_only <- F
 criteria <- "HR" # HR or UKWP
 count_type <- "add" # add or note
 group_meds <- F
+relations <- F
 
 # coded
 code_only <- F
-race <- TRUE # TRUE OR FALSE
+race <- T
 log_transform <- T
-norm_set <- "phenOnly" # phenOnly, all, none
-#dxLogTransform <- TRUE
-#groupLogTransform <- TRUE
+norm_set <- "all" # phenOnly, all, none
 
 
 if (!code_only & !nlp_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
-  dat_agg <- preprocess("data_sources/output_042617_defaultTerm.csv", criteria, count_type)
+  dat_agg <- preprocess("data_sources/output_replication_test_053117.csv", criteria, count_type)
+  
+  if (relations) {
+    preprocess_relations("data_sources/output_location_relation_060117.csv", criteria, count_type)
+  }
   
   # group_codes(aggregated_data, criteria, group_meds_labs)
-  dat_grouped <- group_codes(dat_agg, criteria, group_meds)
+  dat_grouped <- group_codes(dat_agg, criteria, group_meds, relations)
   
   remove(dat_agg)
   
@@ -49,7 +51,6 @@ if (!code_only & !nlp_only) {
   demo <- load_demographics("data_sources/demographics.txt", race)
   
   # merge with dataset
-  # losing patients with merge
   dat_grouped <- merge(dat_grouped, demo)
   
   remove(demo)
@@ -59,7 +60,7 @@ if (!code_only & !nlp_only) {
   
   # merge with dataset
   dat_grouped_codes <- merge(dat_grouped, ad_diag_agg, all.x = TRUE)
-  dat_grouped_codes[is.na(dat_grouped_codes)] <- 0
+  #dat_grouped_codes[is.na(dat_grouped_codes)] <- 0
   
   remove(ad_diag_agg)
   remove(dat_grouped)
@@ -86,9 +87,12 @@ if (!code_only & !nlp_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
   dat_agg <- preprocess("data_sources/output_042617_precisionTerm.csv", criteria, count_type)
   
-  # group_codes(aggregated_data, criteria, group_meds_labs)
-  dat_grouped_codes <- group_codes(dat_agg, criteria, group_meds)
+  if (relations) {
+    dat_agg_rel <- preprocess_relations("data_sources/output_location_relation_060117.csv", criteria, count_type)
+  }
   
+  dat_grouped_codes <- group_codes(dat_agg, criteria, group_meds, relations)
+
   remove(dat_agg)
 }
 # DO THIS ONCE! GET THE SET OF PATIENTS REPRESENTED IN DATASET FOR DATA PARTITIONING
@@ -100,8 +104,13 @@ train_set <- load_subset(dat_grouped_codes, "train", criteria)
 valid_set <- load_subset(dat_grouped_codes, "valid", criteria)
 
 # create matrices of variables
-train_matrix <- as.matrix(train_set[,-c(1,2)])
-valid_matrix <- as.matrix(valid_set[,-c(1,2)])
+if (!code_only) {
+  train_matrix <- as.matrix(train_set[,-c(1,2)])
+  valid_matrix <- as.matrix(valid_set[,-c(1,2)])
+} else {
+  train_matrix <- as.matrix(train_set[, c(1, 14)])
+  valid_matrix <- as.matrix(valid_set[, c(1, 14)])
+}
 
 # create outcome variables
 train_label <- as.factor(train_set$label)
@@ -152,7 +161,6 @@ rf_results <- perf(train_predict_rf, train_label, valid_predict_rf, valid_label,
 rf_results
 
 # variable importance (scaled from 0 to 100)
-# not sure this code is actually working the way i want it to
 rfImp <- varImp(rfFit)$importance#[order(-rfImp$Overall),]
 rfImp$featureNumber <- 1:ncol(train_set[,-c(1,2)])
 rfImp <- rfImp[order(-rfImp$Overall),]

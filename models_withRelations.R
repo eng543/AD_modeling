@@ -23,10 +23,10 @@ description <- "structured variables only|Dx codes all normalized and log transf
 #description <- "NLP only|concepts grouped|note counts|meds labs grouped"
 # NLP
 nlp_only <- F
-criteria <- "UKWP" # HR or UKWP
+criteria <- "HR" # HR or UKWP
 count_type <- "add" # add or note
-group_meds <- T
-relations <- T
+group_meds <- F
+relations <- F
 
 # coded
 code_only <- F
@@ -36,7 +36,7 @@ norm_set <- "all" # phenOnly, all, none
 
 if (!code_only & !nlp_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
-  dat_agg <- preprocess("data_sources/output_042617_defaultTerm.csv", criteria, count_type)
+  dat_agg <- preprocess("data_sources/output_replication_test_053117.csv", criteria, count_type)
   
   if (relations) {
     dat_agg_rel <- preprocess_relations("data_sources/output_location_relation_060117.csv", criteria, count_type)
@@ -88,8 +88,12 @@ if (!code_only & !nlp_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
   dat_agg <- preprocess("data_sources/output_042617_precisionTerm.csv", criteria, count_type)
   
+  if (relations) {
+    dat_agg_rel <- preprocess_relations("data_sources/output_location_relation_060117.csv", criteria, count_type)
+  }
+  
   # group_codes(aggregated_data, criteria, group_meds_labs)
-  dat_grouped_codes <- group_codes(dat_agg, criteria, group_meds)
+  dat_grouped_codes <- group_codes(dat_agg, criteria, group_meds, relations)
   
   remove(dat_agg)
 }
