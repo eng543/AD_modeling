@@ -25,7 +25,7 @@ nlp_only <- F
 criteria <- "HR" # HR or UKWP
 count_type <- "add" # add or note
 group_meds <- F
-relations <- F
+relations <- T
 
 # coded
 code_only <- F
@@ -141,6 +141,9 @@ valid_set_factored <- valid_set
 
 train_set_factored$label <- factor(train_set_factored$label, levels = c("0", "1"), labels = c("level0", "level1"))
 valid_set_factored$label <- factor(valid_set_factored$label, levels = c("0", "1"), labels = c("level0", "level1"))
+
+# make sure train_set organized by patient_id for replicability
+train_set_factored <- train_set_factored[order(train_set_factored$patient_id),]
 
 set.seed(33)
 rfFit <- train(label~., train_set_factored[,-1],

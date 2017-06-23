@@ -254,82 +254,77 @@ group_codes <- function(dat, criteria, group_meds_labs, relations) {
 	## configure whether both meds and labs should be grouped to single category or not
 	if (group_meds_labs) {
 	  # separate meds/labs from other types of features
-  	meds_labs <- dat_grouped[,c(med_cols, lab_cols)]
+  	meds <- dat_grouped[,med_cols]
+  	labs <- dat_grouped[,lab_cols]
   	no_meds_labs <- dat_grouped[, -c(med_cols, lab_cols)]
   	
-  	# new columns for groups
-  	meds_labs$meds_positive <- 0
-  	meds_labs$meds_negated <- 0
-  	
-  	meds_labs$labs_positive <- 0
-  	meds_labs$labs_negated <- 0
+  	meds_t <- as.data.frame(t(meds))
+  	labs_t <- as.data.frame(t(labs))
   	
   	# new indices in subset
-  	med_cols_sub <- grep("topical_steroid|topical_calcineurin_inhibitors|emollients|antihistimines|oral_steroids|
-  					 phototheraphy|other|oral_antibiotics|oral_tacrolimus|alternative_medicine", names(meds_labs))
+  	#med_cols_sub <- grep("topical_steroid|topical_calcineurin_inhibitors|emollients|antihistimines|oral_steroids|
+  	#				 phototheraphy|other|oral_antibiotics|oral_tacrolimus|alternative_medicine", names(meds_labs))
   	
-  	lab_cols_sub <- grep("skinreactivity|ige", names(meds_labs))
+  	#lab_cols_sub <- grep("skinreactivity|ige", names(meds_labs))
   	
-  	# create groups, aggregate counts
-  	# to do: implement with dplyr?
-    for (i in 1:ncol(meds_labs)) {
-      if (names(meds_labs[i]) != "meds_positive" & names(meds_labs[i]) != "meds_negated" & names(meds_labs[i]) != "labs_positive" & names(meds_labs[i]) != "labs_negated") {
-        #print(names(meds_labs[i]))
-        
-        if (grepl("positive", names(meds_labs[i]))) {
-        if (i %in% med_cols_sub) {
-            #print(paste("positive med: ", names(meds_labs[i])))
-            
-            meds_labs$meds_positive <- meds_labs[, i] + meds_labs$meds_positive
-          }
-          
-          else if (i %in% lab_cols_sub) {
-            #print(paste("positive lab: ", names(meds_labs[i])))
-          
-            meds_labs$labs_positive <- meds_labs[, i] + meds_labs$labs_positive
-          }
-          
-          else {
-            print("problem!")
-          }
-        }
-        
-        else if (grepl("negative", names(meds_labs[i]))) {
-          if (i %in% med_cols_sub) {
-            #print(paste("negative med: ", names(meds_labs[i])))
-            
-            meds_labs$meds_negated <- meds_labs[, i] + meds_labs$meds_negated
-          }
-          
-          else if (i %in% lab_cols_sub) {
-            #print(paste("negative labs: ", names(meds_labs[i])))
-            
-            meds_labs$labs_negated <- meds_labs[, i] + meds_labs$labs_negated
-          }
-          
-          else {
-            print("problem!")
-          }
-        }
-      }
-    }
+  	# positive vs. negative
+  	meds_neg <- grep("negative", rownames(meds_t))
+  	labs_neg <- grep("negative", rownames(labs_t))
   	
-  	# just take the groups
-  	meds_labs_summary <- meds_labs[,c(23:26)]
+  	# category label
+  	meds_t$category <- NA
+  	labs_t$category <- NA
   	
-  	# make groups binary
-  	meds_labs_summary$meds_positive <- ifelse(meds_labs_summary$meds_positive > 0,
-  	                                          1,
-  	                                          0)
-  	meds_labs_summary$meds_negated <- ifelse(meds_labs_summary$meds_negated > 0,
-  	                                          1,
-  	                                          0)
-  	meds_labs_summary$labs_positive <- ifelse(meds_labs_summary$labs_positive > 0,
-  	                                          1,
-  	                                          0)
-  	meds_labs_summary$labs_negated <- ifelse(meds_labs_summary$labs_negated > 0,
-  	                                          1,
-  	                                          0)
+  	for (i in 1:nrow(meds_t)) {
+  	  if (i %in% meds_neg) {
+  	    meds_t$category[i] <- "meds_negative"
+  	  } else {
+  	    meds_t$category[i] <- "meds_positive"
+  	  }
+  	}
+  	
+  	for (i in 1:nrow(labs_t)) {
+  	  if (i %in% labs_neg) {
+  	    labs_t$category[i] <- "labs_negative"
+  	  } else {
+  	    labs_t$category[i] <- "labs_positive"
+  	  }
+  	}
+  	
+  	# combine counts for each category
+  	meds_sum <- meds_t %>%
+  	  group_by(category) %>%
+  	  summarise_each(funs(sum))
+  	
+  	labs_sum <- labs_t %>%
+  	  group_by(category) %>%
+  	  summarise_each(funs(sum))
+  	
+  	# transpose back to original form, just two categories now
+  	meds_summary <- as.data.frame(t(meds_sum))
+  	names(meds_summary) <- as.character(unlist(meds_summary[1,]))
+  	meds_summary <- meds_summary[-1,]
+  	
+  	labs_summary <- as.data.frame(t(labs_sum))
+  	names(labs_summary) <- as.character(unlist(labs_summary[1,]))
+  	labs_summary <- labs_summary[-1,]
+  	
+  	# make categories binary
+  	meds_summary$meds_positive <- ifelse(as.numeric(as.character(meds_summary$meds_positive)) > 0,
+  	                                     1,
+  	                                     0)
+  	
+  	meds_summary$meds_negative <- ifelse(as.numeric(as.character(meds_summary$meds_negative)) > 0,
+  	                                     1,
+  	                                     0)
+  	
+  	labs_summary$labs_positive <- ifelse(as.numeric(as.character(labs_summary$labs_positive)) > 0,
+  	                                     1,
+  	                                     0)
+  	
+  	labs_summary$labs_negative <- ifelse(as.numeric(as.character(labs_summary$labs_negative)) > 0,
+  	                                     1,
+  	                                     0)
   	
   	# log transform everything else
   	# if relations, combine those first
@@ -356,27 +351,13 @@ group_codes <- function(dat, criteria, group_meds_labs, relations) {
   	no_meds_labs_log <- cbind(no_meds_labs[,c(1,2)], no_meds_labs_log)
   	
   	# re-combine
-  	dat_grouped <- cbind(no_meds_labs_log, meds_labs_summary)
+  	dat_grouped <- cbind(no_meds_labs_log, meds_summary, labs_summary)
   	
 	} else if (group_meds_labs == FALSE) {
 	  labs <- dat_grouped[,lab_cols]
 	  no_labs <- dat_grouped[, -lab_cols]
 	  
-	  # new columns for groups
-    #labs$labs_positive <- 0
-	  #labs$labs_negated <- 0
-	  
-	  # vectors to create new columns for groups
-	  labs_positive <- c()
-	  labs_negative <- c()
-	  
-	  # patient IDs
-	  pats <- no_labs$patient_id
-	  
 	  labs_t <- as.data.frame(t(labs))
-	  
-	  # new indices in subset
-	  #lab_cols_sub <- grep("skinreactivity|ige", names(labs))
 	  
 	  # positive vs. negative
 	  labs_neg <- grep("negative", rownames(labs_t))
@@ -399,44 +380,6 @@ group_codes <- function(dat, criteria, group_meds_labs, relations) {
 	  labs_summary <- as.data.frame(t(labs_sum))
 	  names(labs_summary) <- as.character(unlist(labs_summary[1,]))
 	  labs_summary <- labs_summary[-1,]
-	  
-	  # create groups, aggregate counts
-	  # to do: implement with dplyr?
-	  # for (i in 1:ncol(labs)) {
-	  #   if (names(labs[i]) != "meds_positive" & names(labs[i]) != "meds_negated" & names(labs[i]) != "labs_positive" & names(labs[i]) != "labs_negated") {
-	  #     #print(names(labs[i]))
-	  #     
-	  #     if (grepl("positive", names(labs[i]))) {
-	  #       if (i %in% lab_cols_sub) {
-	  #         #print(paste("positive lab: ", names(labs[i])))
-	  #         
-	  #         labs$labs_positive <- labs[, i] + labs$labs_positive
-	  #       }
-	  #       
-	  #       else {
-	  #         print("problem!")
-	  #       }
-	  #     }
-	  #     
-	  #     else if (grepl("negative", names(labs[i]))) {
-	  #       if (i %in% lab_cols_sub) {
-	  #         #print(paste("negative labs: ", names(labs[i])))
-	  #         
-	  #         labs$labs_negated <- labs[, i] + labs$labs_negated
-	  #       }
-	  #       
-	  #       else {
-	  #         print("problem!")
-	  #       }
-	  #     }
-	  #   }
-	  # }
-	  
-	  # just take the groups
-	  #labs_summary <- labs[,c(5,6)]
-	  
-	  # add patient names back in
-	  #labs_summary$patient_id <- pats
 	  
 	  # make groups binary
 	  labs_summary$labs_positive <- ifelse(as.numeric(as.character(labs_summary$labs_positive)) > 0,

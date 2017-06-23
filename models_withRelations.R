@@ -148,6 +148,8 @@ valid_predict <- predict(model, valid_matrix, s = best_lambda, type = "class")
 
 lasso_results <- perf(train_predict, train_label, valid_predict, valid_label, description, "regular lasso", criteria)
 
+lasso_results
+
 # features left in model
 lasso_coefs <- coef(model, s = best_lambda)
 lasso_features <- lasso_coefs@i[-1]

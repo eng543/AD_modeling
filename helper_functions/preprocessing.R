@@ -3,28 +3,11 @@ library(dplyr)
 setwd("~/AD_modeling")
 options(digits=11)
 
-
-
-### aggregate at patient level
-
+### aggregate concept counts at patient level (collapsing across notes)
 
 preprocess <- function(source_file, criteria, count_type) {
   #dat <- read.csv("data_sources/output_042617_defaultTerm.csv", as.is = T)
 	dat <- read.csv(source_file, as.is = T)
-
-	patients = c()
-	#dat$patient_id <- dat$note_id
-	
-	# for(i in 1:nrow(dat)) {
-	#   #split note_id on underscore to get patient_id [1] and note_id [2]
-	#   split = strsplit(dat[i, 1], "_")
-	#   # take patient part of split
-	#   patient = split[[1]][1]
-	#   # add new patient id to data frame
-	#   dat[i, "patient_id"] <- patient
-	#   # add patient id to list of patients
-	#   patients <- c(patients, patient)
-	# }
 	
 	dat$patient_id <- sapply(strsplit(dat$note_id, "_"), "[[", 1)
 
@@ -133,76 +116,3 @@ preprocess <- function(source_file, criteria, count_type) {
 	return(dat_agg)
 
 }
-
-
-
-# write candidate_patients_labels.txt for creating train/test sets
-
-
-#### code block for combining two sets of results from different sources (nmff&nmh) ####
-# source("preprocessing_nmh.R")
-# dat_patients <- unique(dat_agg$patient_id_fix)
-# 
-# for (i in 1:nrow(dat_agg2)) {
-#   pat <- dat_agg2[i, 1]
-#   
-#   # if patient common to nmh/nmff
-#   if (pat %in% dat_patients) {
-#     for (j in names(dat_agg2)) {
-#       if (j != "patient_id_fix" & j != "patient_id" & j != "HRLabel" & j != "label") {
-#         rw <- grep(pat, dat_agg$patient_id_fix)
-# 
-#         # if feature common to nmh/nmff, add counts across dataframes
-#         if (j %in% names(dat_agg)) {
-#           col <- grep(j, names(dat_agg))
-#           dat_agg[rw, col] <- dat_agg[rw, col] + dat_agg2[i, j]
-#           
-#           # if feature unique to nmh, add new column and value from nmh data frame
-#         } else { 
-#           dat_agg[[j]] <- 0
-#           col <- grep(j, names(dat_agg))
-#           dat_agg[rw, col] <- dat_agg2[i, j]
-#         }
-#       }
-#     }
-#     # if patient in nmh but not nmff
-#   } else {
-#     # create new row for new patient
-#     temp_row <- matrix(c(rep.int(NA, length(dat_agg))), nrow=1, ncol=length(dat_agg))
-#     new_row <- data.frame(temp_row)
-#     colnames(new_row) <- colnames(dat_agg)
-#     new_row$patient_id_fix <- pat
-#     #new_row$UKWPLabel <- dat_agg2$UKWPLabel[i]
-#     new_row$HRLabel <- dat_agg2$HRLabel[i]
-#     new_row$label <- dat_agg2$label[i]
-#     dat_agg <- rbind(dat_agg, new_row)
-#     
-#     for (k in names(dat_agg2)) {
-#       if (k != "patient_id_fix" & k != "patient_id" & k != "HRLabel" & k != "label") {
-#         rw <- grep(pat, dat_agg$patient_id_fix)
-#         
-#         # if feature common to nmh/nmff, add counts across data frames
-#         if (k %in% names(dat_agg)) {
-#           col <- grep(k, names(dat_agg))
-#           dat_agg[rw, col] <- dat_agg2[i, k]
-#           
-#           # if feature unique to nmh, add new column and value from nmh data frame
-#         } else {
-#           dat_agg[[k]] <- 0
-#           col <- grep(k, names(dat_agg))
-#           dat_agg[rw, col] <- dat_agg2[i, k]
-#         }
-#       }
-#     }
-#   }
-# }
-# dat_agg[is.na(dat_agg)] <- 0
-
-# definites and negatives only
-#dat_agg$label2 <- ifelse(dat_agg$classification == "UKWPDefinite",
-#                         1,
-#                         ifelse(dat_agg$classification == "UKWPNegative",
-#                                0,
-#                                -1))
-
-
