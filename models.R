@@ -12,7 +12,7 @@ source("helper_functions/preprocessing.R")
 source("helper_functions/preprocessing_relations.R")
 source("helper_functions/dimensionality_reduction.R")
 source("helper_functions/demographics.R")
-source("helper_functions/diagnosis_codes_expanded.R")
+source("helper_functions/diagnosis_codes.R")
 source("helper_functions/meds_labs.R")
 source("helper_functions/read_subsets.R")
 source("helper_functions/performance_measures.R")
@@ -21,6 +21,7 @@ source("helper_functions/performance_measures.R")
 #description <- "concepts grouped|note counts|Dx codes phenOnly normalized and all log transformed|meds labs grouped"
 description <- "structured variables only|Dx codes all normalized and log transformed|meds labs grouped"
 #description <- "NLP only|concepts grouped|note counts|meds labs grouped"
+
 # NLP
 nlp_only <- F
 criteria <- "HR" # HR or UKWP
@@ -68,6 +69,8 @@ if (!code_only & !nlp_only) {
   
   # load coded medications and labs
   dat_grouped_codes <- meds_labs_read(dat_grouped_codes, "data_sources/meds_coded_summarized.csv", "data_sources/labs_031517.txt", group_meds)
+  
+  
 } else if (code_only & !nlp_only) {
   # load_demographics(source_file, race(boolean))
   demo <- load_demographics("data_sources/demographics.txt", race)
@@ -83,7 +86,8 @@ if (!code_only & !nlp_only) {
 
   # load coded medications and labs
   dat_grouped_codes <- meds_labs_read(dat_grouped_codes, "data_sources/meds_coded_summarized.csv", "data_sources/labs_031517.txt", group_meds)
-  ### too many patients, but will get filtered out in next step creating the train/test sets
+
+  
 } else if (nlp_only & !code_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
   dat_agg <- preprocess("data_sources/output_042617_precisionTerm.csv", criteria, count_type)
@@ -121,7 +125,7 @@ if (!code_only) {
 train_label <- as.factor(train_set$label)
 valid_label <- as.factor(valid_set$label)
 
-### Train the model ###
+### LASSO ###
 ## cv.glmnet to set best lambda value ##
 # specify own folds so can test performance on validation set #
   # write set of folds ONCE, use for all experiments
@@ -177,7 +181,7 @@ if (file.exists("results/results_summary_defaultTerm.csv")) {
   results_summary <- lasso_results
 }
 
-##### Adaptive LASSO #####
+##### ADAPTIVE LASSO #####
 # ridge regression to create the adaptive weights vector
 ridge_adapt <- cv.glmnet(train_matrix, train_label, family = "binomial", alpha = 0, foldid=foldid)
 w3 <- 1/abs(matrix(coef(ridge_adapt, s = ridge_adapt$lambda.min)[, 1][2:(ncol(train_matrix)+1)])) ^ 1 # using gamma = 1 (suggested values 0.5, 1, 2)
@@ -211,8 +215,6 @@ results_summary <- rbind(results_summary, adapt_lasso_results)
 # save results to file
 write.csv(results_summary, "results/results_summary_defaultTerm.csv", row.names = F)
 write.csv(avg_results_all, filename, row.names = F)
-
-
 
 
 ##### Random Forest Classification #####
@@ -304,7 +306,9 @@ write.csv(avg_results_all, filename, row.names = F)
   
 
 
-### Learning curves ###
+
+
+### Learning curves ### (DON'T TOTALLY TRUST THESE, BUT GOOD ENOUGH FOR DECIDING WE HAVE ENOUGH PATIENTS)
 train_set_factored <- train_set[,-1]
 valid_set_factored <- valid_set[,-1]
 
@@ -459,209 +463,5 @@ learnCurves <- rbind(learnCurves, learnCurve_lasso)
 ggplot(learnCurves, aes(m, auc, color = source)) + 
   geom_line() + 
   facet_grid(algorithm ~ .)
-
-
-
-
-
-
-
-
-
-
-
-
-
-### ROC ###
-#### use probability output of model #### 
-#data(ROCR.simple)
-#head(cbind(ROCR.simple$predictions, ROCR.simple$labels), 5)
-#pred <- prediction(ROCR.simple$predictions, ROCR.simple$labels)
-
-train_predict <- as.numeric(train_predict)
-train_label <- as.numeric(train_label) - 1
-pred <- prediction(train_predict, train_label)
-
-# ROC curve
-perf <- performance(pred, "tpr", "fpr")
-plot(perf)
-
-# specificity cutoff vs. f measure
-perf <- performance(pred, "f", "spec")
-plot(perf)
-
-ind <- which.max(slot (perf, "y.values")[[1]])
-f <- slot(perf, "y.values")[[1]][ind]
-cutoff <- slot(perf, "x.values")[[1]][ind]
-print(c(f_score=f, cutoff=cutoff))
-
-# partial ROC curve: only accept FPR below certain threshold (above)
-pROC = function(pred, fpr.stop){
-  perf <- performance(pred,"tpr","fpr")
-  for (iperf in seq_along(perf@x.values)){
-    ind = which(perf@x.values[[iperf]] <= fpr.stop)
-    perf@y.values[[iperf]] = perf@y.values[[iperf]][ind]
-    perf@x.values[[iperf]] = perf@x.values[[iperf]][ind]
-  }
-  return(perf)
-}
-
-proc.perf <- pROC(pred, fpr.stop=1-cutoff)
-plot(proc.perf)
-abline(a=0, b=1)
-
-# vertical line for cutoff (can either specify a desired cutoff or pick the one that maximizes f-score)
-perf <- performance(pred, "tpr", "fpr")
-plot(perf)
-
-abline(v=1-cutoff, col = "red") # maximum f-score
-abline(v=0.03, col = "green") # desired cutoff
-
-auc <- paste("AUC =", round(performance(pred, "auc")@y.values[[1]], 3))
-pauc <- paste("Partial AUC =", round(performance(pred, "auc", fpr.stop=1-cutoff)@y.values[[1]], 3)) # change fpr.stop
-legend(0.7, 0.15, c(auc, pauc), lty=c(1,1), col=c("black", "red"))
-
-
-##### Adaptive LASSO #####
-# ridge regression to create the adaptive weights vector
-cv.ridge <- cv.glmnet(train_matrix, train_label, family = "binomial", alpha = 0) #, parallel = TRUE, standardize = TRUE)
-w3 <- 1/abs(matrix(coef(cv.ridge, s = cv.ridge$lambda.min)[, 1][2:(ncol(train_matrix)+1)])) ^ 1 # using gamma = 1 (suggested values 0.5, 1, 2)
-w3[w3[,1] == Inf] <- 999999999 # replacing values estimated as Inf for 999999999
-
-# adaptive lasso using adaptive weights vector
-cv.lasso <- cv.glmnet(train_matrix, train_label, 
-                      family = "binomial", 
-                      alpha = 1, 
-                      #parallel = TRUE, 
-                      #standarize = TRUE,
-                      type.measure = 'auc',
-                      penalty.factor = w3)
-best_lambda <- cv.lasso$lambda.min
-
-### Apply the model ###
-# apply gold standard model to gold standard and test set using best lambda
-# type = "response" -> fitted probabilities, "class" -> class label with max probability
-al_train_predict <- predict(cv.lasso, train_matrix, s=best_lambda, type="class")
-al_test_predict <- predict(cv.lasso, test_matrix, s=best_lambda, type="class")
-
-### Results ###
-al_train_result_accuracy <- sum(al_train_predict == train_label) / length(train_label)
-al_test_result_accuracy <- sum(al_test_predict == test_label) / length(test_label)
-
-al_train_tp <- 0
-al_train_tn <- 0
-al_train_fp <- 0
-al_train_fn <- 0
-
-al_test_tp <- 0
-al_test_tn <- 0
-al_test_fp <- 0
-al_test_fn <- 0
-
-for (i in 1:length(al_train_predict)) {
-  prediction <- as.numeric(al_train_predict[i,])
-  true <- train_label[i]
-  
-  if (prediction == 1 & true == 1) {
-    al_train_tp <- al_train_tp + 1
-  } else if (prediction == 0 & true == 1) {
-    al_train_fn <- al_train_fn + 1
-  } else if (prediction == 1 & true == 0) {
-    al_train_fp <- al_train_fp + 1
-  } else if (prediction == 0 & true == 0) {
-    al_train_tn <- al_train_tn + 1
-  }
-}
-
-al_train_result_ppv <- al_train_tp / (al_train_tp + al_train_fp)
-al_train_result_recall <- al_train_tp / (al_train_tp + al_train_fn)
-al_train_result_specificity <- al_train_tn / (al_train_fp + al_train_tn)
-al_train_result_f_measure <- 2 * ((al_train_result_recall * al_train_result_ppv) / (al_train_result_recall + al_train_result_ppv))
-
-for (i in 1:length(al_test_predict)) {
-  prediction <- as.numeric(al_test_predict[i,])
-  true <- test_label[i]
-  
-  if (prediction == 1 & true == 1) {
-    al_test_tp <- al_test_tp + 1
-  } else if (prediction == 0 & true == 1) {
-    al_test_fn <- al_test_fn + 1
-  } else if (prediction == 1 & true == 0) {
-    al_test_fp <- al_test_fp + 1
-  } else if (prediction == 0 & true == 0) {
-    al_test_tn <- al_test_tn + 1
-  }
-}
-
-al_test_result_ppv <- al_test_tp / (al_test_tp + al_test_fp)
-al_test_result_recall <- al_test_tp / (al_test_tp + al_test_fn)
-al_test_result_specificity <- al_test_tn / (al_test_fp + al_test_tn)
-al_test_result_f_measure <- 2 * ((al_test_result_recall * al_test_result_ppv) / (al_test_result_recall + al_test_result_ppv))
-
-### ROC ###
-#### use probability output of model #### 
-#data(ROCR.simple)
-#head(cbind(ROCR.simple$predictions, ROCR.simple$labels), 5)
-#pred <- prediction(ROCR.simple$predictions, ROCR.simple$labels)
-
-al_train_predict_prob <- predict(cv.lasso, train_matrix, s=best_lambda, type="response")
-al_test_predict_prob <- predict(cv.lasso, test_matrix, s=best_lambda, type="response")
-
-train_label <- as.numeric(train_label) - 1
-test_label <- as.numeric(test_label) - 1
-
-al_pred <- prediction(al_train_predict_prob, train_label)
-
-# ROC curve
-al_perf <- performance(al_pred, "tpr", "fpr")
-plot(al_perf)
-
-# specificity cutoff vs. f measure
-al_perf <- performance(al_pred, "f", "spec")
-plot(al_perf)
-
-al_ind <- which.max(slot (al_perf, "y.values")[[1]])
-al_f <- slot(al_perf, "y.values")[[1]][al_ind]
-al_cutoff <- slot(al_perf, "x.values")[[1]][al_ind]
-print(c(f_score=al_f, cutoff=al_cutoff))
-
-# partial ROC curve: only accept FPR below certain threshold (above)
-pROC = function(pred, fpr.stop){
-  perf <- performance(pred,"tpr","fpr")
-  for (iperf in seq_along(perf@x.values)){
-    ind = which(perf@x.values[[iperf]] <= fpr.stop)
-    perf@y.values[[iperf]] = perf@y.values[[iperf]][ind]
-    perf@x.values[[iperf]] = perf@x.values[[iperf]][ind]
-  }
-  return(perf)
-}
-
-al_proc.perf <- pROC(al_pred, fpr.stop=1-cutoff)
-plot(al_proc.perf)
-abline(a=0, b=1)
-
-# vertical line for cutoff (can either specify a desired cutoff or pick the one that maximizes f-score)
-al_perf <- performance(al_pred, "tpr", "fpr")
-plot(al_perf)
-
-abline(v=1-al_cutoff, col = "red") # maximum f-score
-abline(v=0.03, col = "green") # desired cutoff
-
-al_auc <- paste("AUC =", round(performance(al_pred, "auc")@y.values[[1]], 3))
-al_pauc <- paste("Partial AUC =", round(performance(al_pred, "auc", fpr.stop=1-al_cutoff)@y.values[[1]], 3)) # change fpr.stop
-legend(0.7, 0.15, c(al_auc, al_pauc), lty=c(1,1), col=c("black", "red"))
-
-
-
-
-# Results ala RA scripts
-#Predicted AD-positive for all records
-table(gold_predict>0.5)
-#Predicted AD-positive vs. Gold Standard
-table(dat_grouped$label, gold_predict>0.5, dnn=list("status", "prediction"))
-#Predicted prevalence for Gold standard
-sum((gold_predict>0.5)/length(gold_predict))
-#Real prevalence for Gold standard
-sum(dat_grouped$label/length(dat_grouped$label))
 
 
