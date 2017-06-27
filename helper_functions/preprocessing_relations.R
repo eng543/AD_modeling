@@ -11,20 +11,6 @@ options(digits=11)
 preprocess_relations <- function(source_file, criteria, count_type) {
   #dat <- read.csv("data_sources/output_location_relation_060117.csv", as.is = T)
 	dat <- read.csv(source_file, as.is = T)
-
-	patients = c()
-	#dat$patient_id <- dat$note_id
-	
-	# for(i in 1:nrow(dat)) {
-	#   #split note_id on underscore to get patient_id [1] and note_id [2]
-	#   split = strsplit(dat[i, 1], "_")
-	#   # take patient part of split
-	#   patient = split[[1]][1]
-	#   # add new patient id to data frame
-	#   dat[i, "patient_id"] <- patient
-	#   # add patient id to list of patients
-	#   patients <- c(patients, patient)
-	# }
 	
 	dat$patient_id <- sapply(strsplit(dat$note_id, "_"), "[[", 1)
 

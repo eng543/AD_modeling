@@ -1,6 +1,4 @@
-library(glmnet)
 library(dplyr)
-library(ROCR)
 library(caret)
 
 setwd("~/AD_modeling")
@@ -12,7 +10,7 @@ source("helper_functions/preprocessing.R")
 source("helper_functions/preprocessing_relations.R")
 source("helper_functions/dimensionality_reduction.R")
 source("helper_functions/demographics.R")
-source("helper_functions/diagnosis_codes_expanded.R")
+source("helper_functions/diagnosis_codes.R")
 source("helper_functions/meds_labs.R")
 source("helper_functions/read_subsets.R")
 source("helper_functions/performance_measures.R")
@@ -67,6 +65,8 @@ if (!code_only & !nlp_only) {
   
   # load coded medications and labs
   dat_grouped_codes <- meds_labs_read(dat_grouped_codes, "data_sources/meds_coded_summarized.csv", "data_sources/labs_031517.txt", group_meds)
+  
+  
 } else if (code_only & !nlp_only) {
   # load_demographics(source_file, race(boolean))
   demo <- load_demographics("data_sources/demographics.txt", race)
@@ -82,7 +82,8 @@ if (!code_only & !nlp_only) {
   
   # load coded medications and labs
   dat_grouped_codes <- meds_labs_read(dat_grouped_codes, "data_sources/meds_coded_summarized.csv", "data_sources/labs_031517.txt", group_meds)
-  ### too many patients, but will get filtered out in next step creating the train/test sets
+  
+  
 } else if (nlp_only & !code_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
   dat_agg <- preprocess("data_sources/output_042617_precisionTerm.csv", criteria, count_type)
@@ -95,22 +96,14 @@ if (!code_only & !nlp_only) {
 
   remove(dat_agg)
 }
+
 # DO THIS ONCE! GET THE SET OF PATIENTS REPRESENTED IN DATASET FOR DATA PARTITIONING
-# create_train_test.R
+# dataset_splits/create_train_test.R
 #write.table(dat_grouped_codes[,c(1,2)], "candidate_patients_class.txt", sep = "\t", row.names = F)
 
 # read in patient_id for those in train_set/valid_set
 train_set <- load_subset(dat_grouped_codes, "train", criteria)
 valid_set <- load_subset(dat_grouped_codes, "valid", criteria)
-
-# create matrices of variables
-if (!code_only) {
-  train_matrix <- as.matrix(train_set[,-c(1,2)])
-  valid_matrix <- as.matrix(valid_set[,-c(1,2)])
-} else {
-  train_matrix <- as.matrix(train_set[, c(1, 14)])
-  valid_matrix <- as.matrix(valid_set[, c(1, 14)])
-}
 
 # create outcome variables
 train_label <- as.factor(train_set$label)
@@ -126,9 +119,6 @@ if (tolower(criteria) == "hr") {
 }
 
 foldid <- folds$fold
-
-
-##### Random Forest Classification #####
 folds_list <- vector(mode="list", length=10)
 folds$index <- 1:nrow(folds)
 for (i in 1:10) {
@@ -136,15 +126,19 @@ for (i in 1:10) {
   fold_index <- grep(eval(fold), folds$fold)
   folds_list[[i]] <- fold_index
 }
+
+# refactor the label for training
 train_set_factored <- train_set
 valid_set_factored <- valid_set
 
 train_set_factored$label <- factor(train_set_factored$label, levels = c("0", "1"), labels = c("level0", "level1"))
 valid_set_factored$label <- factor(valid_set_factored$label, levels = c("0", "1"), labels = c("level0", "level1"))
 
-# make sure train_set organized by patient_id for replicability
+# make sure train_set organized by patient_id for replicability (training order must be fixed)
 train_set_factored <- train_set_factored[order(train_set_factored$patient_id),]
 
+# train model
+# 10 fold cv
 set.seed(33)
 rfFit <- train(label~., train_set_factored[,-1],
                method = "rf",
@@ -159,6 +153,7 @@ train_predict_rf<- factor(train_predict_rf, levels = c("level0", "level1"), c("0
 valid_predict_rf <- predict(rfFit, valid_set_factored[,-c(1,2)])
 valid_predict_rf <- factor(valid_predict_rf, levels = c("level0", "level1"), c("0","1"))
 
+# create results output
 rf_results <- perf(train_predict_rf, train_label, valid_predict_rf, valid_label, description, "random forest", criteria)
 
 rf_results
@@ -170,6 +165,7 @@ rfImp <- rfImp[order(-rfImp$Overall),]
 rf_features <- paste(rfImp$featureNumber[1:20], collapse = '|')
 rf_results$features <- rf_features
 
+# save results to file
 # filename for independent archive of current experiment
 filename <- paste("results_individual_experiments/", strptime(Sys.time(), format="%Y-%m-%d"), "_", strftime(Sys.time(), format = "%H:%M:%S"), ".csv", sep = "")
 filename <- gsub(":", "-", filename)
@@ -190,6 +186,7 @@ write.csv(rf_results, filename, row.names = F)
 
 
 
+# attempt to make a tree from trained model
 # train using randomForest package
 library(tree)
 

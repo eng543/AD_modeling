@@ -1,6 +1,7 @@
 library(caret)
+setwd("~/AD_modeling")
 
-dat <- read.table("output_032717_allNotes.csv", as.is = T, sep = ",", header = T)
+dat <- read.table("data_sources/output_032717_allNotes.csv", as.is = T, sep = ",", header = T)
 
 patients = c()
 dat$patient_id <- dat$note_id
@@ -32,7 +33,7 @@ for (i in 1:length(unique_patients)) {
 }
 
 # read in diagnosis label from HR Criteria
-cat_HR <- read.table("HR_labels.txt", sep = "\t", header = TRUE, as.is = T)
+cat_HR <- read.table("data_sources/HR_labels.txt", sep = "\t", header = TRUE, as.is = T)
 colnames(cat_HR)[1] <- "patient_id"
 
 # make all patient_id 7 digits
@@ -57,7 +58,7 @@ cat_HR <- cat_HR[,-1]
 cat_HR <- cat_HR[cat_HR$patient_id_fix %in% unique_patients_fix,]
 
 # read in diagnosis label from UKWP Criteria
-cat_UKWP <- read.table("UKWP_labels.txt", sep = "\t", header = TRUE, as.is = T)
+cat_UKWP <- read.table("data_sources/UKWP_labels.txt", sep = "\t", header = TRUE, as.is = T)
 colnames(cat_UKWP)[1] <- "patient_id"
 
 # make all patient_id 7 digits
@@ -113,7 +114,7 @@ cat$label_HR <- ifelse(cat$HRLabel == "HRDefinite" | cat$HRLabel == "HRProbable"
 colnames(cat)[1] <- "patient_id"
 
 # stratification based on UKWP label
-train_UKWP <- createDataPartition(cat$label_UKWP, p = 0.6, list = F)
+train_UKWP <- createDataPartition(cat$label_UKWP, p = 0.6, list = T)
 train_set_UKWP <- cat[train_UKWP,]
 not_train_set_UKWP <- cat[-train_UKWP,]
 
