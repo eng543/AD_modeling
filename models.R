@@ -2,7 +2,6 @@ library(glmnet)
 library(dplyr)
 library(ROCR)
 library(caret)
-library(pmml)
 
 setwd("~/AD_modeling")
 options(digits=11)
@@ -10,6 +9,7 @@ set.seed(999)
 
 # load helper functions
 source("helper_functions/preprocessing.R")
+source("helper_functions/preprocessing_relations.R")
 source("helper_functions/dimensionality_reduction.R")
 source("helper_functions/demographics.R")
 source("helper_functions/diagnosis_codes_expanded.R")
@@ -25,7 +25,7 @@ description <- "structured variables only|Dx codes all normalized and log transf
 nlp_only <- F
 criteria <- "HR" # HR or UKWP
 count_type <- "add" # add or note
-group_meds <- T
+group_meds <- F
 relations <- F
 
 # coded
@@ -36,7 +36,11 @@ norm_set <- "all" # phenOnly, all, none
 
 if (!code_only & !nlp_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
-  dat_agg <- preprocess("data_sources/output_042617_defaultTerm.csv", criteria, count_type)
+  dat_agg <- preprocess("data_sources/output_replication_test_053117.csv", criteria, count_type)
+  
+  if (relations) {
+    dat_agg_rel <- preprocess_relations("data_sources/output_location_relation_060117.csv", criteria, count_type)
+  }
   
   # group_codes(aggregated_data, criteria, group_meds_labs)
   dat_grouped <- group_codes(dat_agg, criteria, group_meds, relations)
@@ -84,8 +88,12 @@ if (!code_only & !nlp_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
   dat_agg <- preprocess("data_sources/output_042617_precisionTerm.csv", criteria, count_type)
   
+  if (relations) {
+    dat_agg_rel <- preprocess_relations("data_sources/output_location_relation_060117.csv", criteria, count_type)
+  }
+  
   # group_codes(aggregated_data, criteria, group_meds_labs)
-  dat_grouped_codes <- group_codes(dat_agg, criteria, group_meds)
+  dat_grouped_codes <- group_codes(dat_agg, criteria, group_meds, relations)
   
   remove(dat_agg)
 }
@@ -134,17 +142,13 @@ foldid <- folds$fold
 model <- cv.glmnet(train_matrix, train_label, alpha=1, family="binomial", foldid=foldid)
 #plot(model)
 best_lambda <- model$lambda.min
-# save model
-pmodel <- pmml(model)
-savePMML(pmodel, "content.pmml", version=4.2)
-#saveXML(pmodel, "content.xml")
-
-#test <- fileToXMLNode("content.xml")
 
 train_predict <- predict(model, train_matrix, s = best_lambda, type = "class")
 valid_predict <- predict(model, valid_matrix, s = best_lambda, type = "class")
 
 lasso_results <- perf(train_predict, train_label, valid_predict, valid_label, description, "regular lasso", criteria)
+
+lasso_results
 
 # features left in model
 lasso_coefs <- coef(model, s = best_lambda)

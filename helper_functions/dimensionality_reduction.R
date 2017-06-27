@@ -38,74 +38,73 @@ group_codes <- function(dat, criteria, group_meds_labs, relations) {
 
   		# lookup concept grouping
   		group_index <- grep(cui, groups$V2)
-
+  		group <- groups$V1[group_index]
+  		new_col_name <- NA
   		
-  		if ((length(group_index) > 0) & family != "other") {
-  		  new_col_name <- NA
-  		  group <- groups$V1[group_index]
-  		  
-  		  # pre-approve history concepts, choosing what code says when conflict with cTAKES assertion label for the subject
-  		  if (length(grep(cui, hist$V2)) > 1) {
-  		    hx_index <- grep(cui, hist$V2)
-  		    
-  		    if (family == "family") {
-  		      hx_fam_index <- grep("family", hist$V1[hx_index])
-  		      new_col_name <- paste(hist$V1[hx_index][hx_fam_index], negation, colcount, sep = "~")
-  		      print(new_col_name)
-  		    } else {
-  		      hx_pat_index <- grep("patient", hist$V1[hx_index])
-  		      new_col_name <- paste(hist$V1[hx_index][hx_pat_index], negation, colcount, sep = "~")
-  		    }
-  		  
-		      topic <- strsplit(as.character(hist$V1[hx_index][1]), "_")[[1]][2]
-		      #hx <- paste(family, "hx", sep = "")
-		      #new_col_name <- paste(topic, hx, negation, colcount, sep = "~")
-		      #print(new_col_name)
-  		  
-  		  }
-  		  
-  		  # deal with other concepts
-  		  
-		  # group positive patient (non-history) concepts
-		   #else if (family == "patient" & history == "false" & negation == "positive") {
-  		  ##### remove history qualifier to get these concepts represented
-		     else if (family == "patient" & negation == "positive") {
-			# creates new column name for concept: group~column#
-		       if (group == "atopy~familyhx" | group == "atopy~patienthx" | group == "eczema~familyhx" | group == "eczema~patienthx") {
-		         new_col_name <- paste(group, negation, colcount, sep = "~")
-		         #print(new_col_name)
-		       } else {
-		         new_col_name <- paste(group, "patient", negation, colcount, sep = "~")
-		         #print(new_col_name)
-		       }
-
-			# group negative patient (non-history) concepts
-		  #} else if (family == "patient" & history == "false" & negation == "negative") {
-			  ##### remove history qualifer to get these concepts represented
-		   } else if (family == "patient" & negation == "negative") {
-		     if (group == "atopy~familyhx" | group == "atopy~patienthx" | group == "eczema~familyhx" | group == "eczema~patienthx") {
-		       new_col_name <- paste(group, negation, colcount, sep = "~")
-		       #print(new_col_name)
-		     } else {
-		       new_col_name <- paste(group, "patient", negation, colcount, sep = "~")
-		       #print(new_col_name)
-		     }
-		     
-		  } else {
-			#print(paste("problem:", cui))
-			# throw out concepts family concepts not in approved famhx list
-		    #print(i)
-			  new_col_name <- paste("discard", "discard", "discard", colcount, sep = "~")
-		  }
-		  
-		} else {
-		   #discard cuis not in group mapping (e.g., contact dermatitis just removed)
-		  #print(paste(i, "not in group"))
-		   new_col_name <- paste("discard", "discard", "discard", colcount, sep = "~")
   		
-		}
-		
-		# set new column name
+  		if (length(group_index) > 0) {
+  		  
+    		# ID CUIs for hx of eczema/atopy
+    		hx_cui_index <- grep("eczema~patienthx|eczema~familyhx|atopy~familyhx|atopy~patienthx", groups$V1)
+    		
+    		if (group_index %in% hx_cui_index) {
+          new_col_name <- paste(groups$V1[group_index], negation, colcount, sep = "~")
+    		} 
+    		
+    		
+    		# assign groupings for rest of concepts (family == patient or family ONLY)
+    		else {
+    		  if (family != "other") {
+    		    
+    		    # derive additional hx concepts using expanded hx list and ctakes labeling
+    		    hx_expand <- grep(cui, hist$V2)
+    		    if (length(hx_expand) > 0) {
+    		      if (history == "true") {
+    		        if (family == "family") {
+    		          hx_sub <- hist[hx_expand,]
+    		          hx_sub_index <- grep("family", hx_sub$V1)
+    		          
+    		          new_col_name <- paste(hx_sub$V1[hx_sub_index], negation, colcount, sep = "~")
+    		          
+    		        } else {
+    		          hx_sub <- hist[hx_expand,]
+    		          hx_sub_index <- grep("patient", hx_sub$V1)
+    		          
+    		          new_col_name <- paste(hx_sub$V1[hx_sub_index], negation, colcount, sep = "~")
+    		          
+    		        }
+    		    
+    		      # possible hx concept, but not labeled as hx
+    		      } else {
+    		        if (family == "patient") {
+    		          new_col_name <- paste(group, family, negation, colcount, sep = "~")
+    		          
+    		        } else {
+    		          # discard family that isn't history (all captured above)
+    		          #print(paste("discard1", cui))
+    		          new_col_name <- paste("discard~discard~discard", colcount, sep = "~")
+    		        }
+    		      }
+    		    # not possible hx concept
+    		    } else {
+    		      if (history == "false" & family == "patient") {
+    		        new_col_name <- paste(group, family, negation, colcount, sep = "~")
+    		      } else {
+    		        #print(paste("discard2", cui))
+    		        new_col_name <- paste("discard~discard~discard", colcount, sep = "~")
+    		      }
+    		    }
+    		  } else { # if "other" subject, discard
+    		    #print(paste("discard3", cui))
+    		    new_col_name <- paste("discard~discard~discard", colcount, sep = "~")
+    		  }
+    		}
+  		} else {
+  		  #print(paste("discard4", cui))
+  		  new_col_name <- paste("discard~discard~discard", colcount, sep = "~")
+  		}
+  		
+  		# set new column name
   		colnames(dat_groups)[colcount] <- new_col_name
 	  }
 	}
