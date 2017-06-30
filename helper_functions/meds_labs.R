@@ -4,6 +4,7 @@ library(dplyr)
 
 meds_labs_read = function(data, med_source, lab_source, group) {
   # read in meds, fix patient_id
+  #meds <- read.csv("data_sources/meds_coded_summarized.csv", as.is = T)
   meds <- read.csv(med_source, as.is = T)
 
   meds$patient_id <- as.character(meds$patient_id)
@@ -24,6 +25,7 @@ meds_labs_read = function(data, med_source, lab_source, group) {
   names(meds)[ncol(meds)] <- "patient_id" 
   
   # read in labs, fix patient ids
+  #labs <- read.table("data_sources/labs_031517.txt", sep = "\t", header = TRUE)
   labs <- read.table(lab_source, sep = "\t", header = TRUE)
   colnames(labs)[1] <- "patient_id"
   

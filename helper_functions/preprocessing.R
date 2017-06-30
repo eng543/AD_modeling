@@ -6,7 +6,7 @@ options(digits=11)
 ### aggregate concept counts at patient level (collapsing across notes)
 
 preprocess <- function(source_file, criteria, count_type) {
-  #dat <- read.csv("data_sources/output_042617_defaultTerm.csv", as.is = T)
+  #dat <- read.csv("data_sources/output_replication_test_053117.csv", as.is = T)
 	dat <- read.csv(source_file, as.is = T)
 	
 	dat$patient_id <- sapply(strsplit(dat$note_id, "_"), "[[", 1)

@@ -1,6 +1,4 @@
 library(glmnet)
-library(dplyr)
-library(ROCR)
 library(caret)
 
 setwd("~/AD_modeling")
@@ -18,16 +16,16 @@ source("helper_functions/read_subsets.R")
 source("helper_functions/performance_measures.R")
 
 # change description/settings of current experiment
-#description <- "concepts grouped|note counts|Dx codes phenOnly normalized and all log transformed|meds labs grouped"
-description <- "structured variables only|Dx codes all normalized and log transformed|meds labs grouped"
-#description <- "NLP only|concepts grouped|note counts|meds labs grouped"
+#description <- "concepts grouped|note counts|phenOnly Dx codes normalized and all log transformed|relations|meds grouped"
+#description <- "structured variables only|phenOnly Dx codes normalized and log transformed"
+description <- "NLP only|concepts grouped|add up counts|relations|meds labs grouped"
 
 # NLP
-nlp_only <- F
+nlp_only <- T
 criteria <- "HR" # HR or UKWP
-count_type <- "add" # add or note
+count_type <- "note" # add or note
 group_meds <- F
-relations <- F
+relations <- T
 
 # coded
 code_only <- F
@@ -90,7 +88,7 @@ if (!code_only & !nlp_only) {
   
 } else if (nlp_only & !code_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
-  dat_agg <- preprocess("data_sources/output_042617_precisionTerm.csv", criteria, count_type)
+  dat_agg <- preprocess("data_sources/output_replication_test_053117.csv", criteria, count_type)
   
   if (relations) {
     dat_agg_rel <- preprocess_relations("data_sources/output_location_relation_060117.csv", criteria, count_type)
@@ -174,8 +172,8 @@ filename <- gsub(":", "-", filename)
 
 # add current results to summary document
 # or create new summary document if first experiment
-if (file.exists("results/results_summary_defaultTerm.csv")) {
-  results_summary <- read.csv("results/results_summary_defaultTerm.csv", as.is = T, header = T)  
+if (file.exists("results/results_summary_lasso.csv")) {
+  results_summary <- read.csv("results/results_summary_lasso.csv", as.is = T, header = T)  
   results_summary <- rbind(results_summary, lasso_results)
 } else {
   results_summary <- lasso_results
@@ -201,6 +199,8 @@ valid_predict_adapt <- predict(lasso_adapt, valid_matrix, s = best_lambda_adapt,
 
 adapt_lasso_results <- perf(train_predict_adapt, train_label, valid_predict_adapt, valid_label, description, "adaptive lasso", criteria)
 
+adapt_lasso_results
+
 adapt_lasso_coefs <- coef(lasso_adapt, s = best_lambda)
 adapt_lasso_features <- adapt_lasso_coefs@i[-1]
 adapt_lasso_features <- paste(adapt_lasso_features, collapse = "|")
@@ -213,8 +213,14 @@ avg_results_all <- rbind(lasso_results, adapt_lasso_results)
 results_summary <- rbind(results_summary, adapt_lasso_results)
 
 # save results to file
-write.csv(results_summary, "results/results_summary_defaultTerm.csv", row.names = F)
+write.csv(results_summary, "results/results_summary_lasso.csv", row.names = F)
 write.csv(avg_results_all, filename, row.names = F)
+
+
+
+
+
+
 
 
 ##### Random Forest Classification #####
@@ -301,7 +307,7 @@ results_summary <- rbind(results_summary, svm_results)
 avg_results_all
 
 # save results to file
-write.csv(results_summary, "results/results_summary.csv", row.names = F)
+write.csv(results_summary, "results/results_summary_allModels.csv", row.names = F)
 write.csv(avg_results_all, filename, row.names = F)
   
 

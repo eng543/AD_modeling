@@ -1,4 +1,3 @@
-library(dplyr)
 library(caret)
 
 setwd("~/AD_modeling")
@@ -16,12 +15,12 @@ source("helper_functions/read_subsets.R")
 source("helper_functions/performance_measures.R")
 
 # change description/settings of current experiment
-description <- "replication|concepts grouped|add up counts|all Dx codes normalized and all log transformed|relations"
+description <- "replication|concepts grouped|note counts|all Dx codes normalized and all log transformed|relations"
 
 # NLP
 nlp_only <- F
 criteria <- "HR" # HR or UKWP
-count_type <- "add" # add or note
+count_type <- "note" # add or note
 group_meds <- F
 relations <- T
 
@@ -86,7 +85,7 @@ if (!code_only & !nlp_only) {
   
 } else if (nlp_only & !code_only) {
   # preprocess(source_file, criteria(hr or ukwp), count_type(add or note))
-  dat_agg <- preprocess("data_sources/output_042617_precisionTerm.csv", criteria, count_type)
+  dat_agg <- preprocess("data_sources/output_replication_test_053117.csv", criteria, count_type)
   
   if (relations) {
     dat_agg_rel <- preprocess_relations("data_sources/output_location_relation_060117.csv", criteria, count_type)
@@ -127,6 +126,8 @@ for (i in 1:10) {
   folds_list[[i]] <- fold_index
 }
 
+
+
 # refactor the label for training
 train_set_factored <- train_set
 valid_set_factored <- valid_set
@@ -147,10 +148,10 @@ rfFit <- train(label~., train_set_factored[,-1],
 
 print(rfFit$finalModel)
 
-train_predict_rf <- predict(rfFit, train_set_factored[,-c(1,2)])
+train_predict_rf <- predict(rfFit, train_set_factored[,-c(1)])
 train_predict_rf<- factor(train_predict_rf, levels = c("level0", "level1"), c("0","1"))
 
-valid_predict_rf <- predict(rfFit, valid_set_factored[,-c(1,2)])
+valid_predict_rf <- predict(rfFit, valid_set_factored[,-c(1)])
 valid_predict_rf <- factor(valid_predict_rf, levels = c("level0", "level1"), c("0","1"))
 
 # create results output
